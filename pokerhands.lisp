@@ -1,87 +1,92 @@
 ;;; Poker hands kata
 
-(defparameter *color*
-  (loop for x across "CDHS"
-     and r from 1 nconc
-       (loop for y across "23456789TJQKA" collect
-	    (cons
-	     (intern (format nil "~A~A" y x))
-	     r))))
+(defparameter *black* nil)
+(defparameter *white* nil)
 
-(defparameter *rank*
-  (loop for x across "23456789TJQKA"
-     and r from 2 nconc
-       (loop for y across "CDHS" collect
-	    (cons
-	     (intern (format nil "~A~A" x y))
-	     r))))
+(defun read-card ()
+  (let ((string (symbol-name (read))))
+    (cons (parse-integer string :start 0 :end 1)
+	  (char string 1))))
 
-(defparameter *black* '())
-(defparameter *white* '())
+(defun read-cards ()
+  (loop repeat 5 collect (read-card)))
 
 (defun black ()
-  (setq *black* (loop repeat 5 collect (read))))
+  (setq *black* (read-cards)))
 
 (defun white ()
-  (setq *white* (loop repeat 5 collect (read))))
+  (setq *white* (read-cards)))
 
 (defun parse-input ()
   (funcall (read))
   (funcall (read)))
 
 (defun rank (card)
-  (cdr (assoc card *rank*)))
+  (car card))
 
-(defun sort-hand (hand)
-  (sort (mapcar #'rank hand) #'>))
+(defun suite (card)
+  (cdr card))
 
-(defun color-hand (hand)
-  (mapcar #'color hand))
+(defun sorted (hand)
+  (sort hand (lambda (c1 c2) (> (rank c1) (rank c2)))))
 
-(defun straight-flush (hand)
-  (and (straight hand) (flush hand)))
+(defun straight-flush (hand ranks)
+  (when (and (straight hand ranks) (flush hand ranks))
+    (cons 9 ranks)))
 
-(defun four-of-a-kind (hand)
-  (when (member 4 (identical hand))
-    (cons 7 hand)))
-
-(defun full-house (hand)
-  (when (and (three-of-a-kind hand) (two-pairs hand))
-    (cons 6 hand)))
-
-(defun flush (hand rank)
-  (when (member 5 (identical (color-hand hand)))))
-
-(defun straight (hand))
-
-(defun three-of-a-kind (hand)
-  (when (member 3 (identical hand))
-    (cons 3 hand)))
-
-(defun two-pairs (hand)
-  (when (eq 2 (count 2 (identical hand)))
-    (cons 3 hand)))
-
-(defun pair (hand rank)
-  (let ((n (position 2 (identical hand))))
-    (when n
-      (list* 2 n rank))))
-
-(defun identical (hand)
-  (list* 0 0 (loop for r from 2 to 14 collect (count r (sort-hand hand)))))
-
-(defun high-card (hand rank)
+(defun four-of-a-kind (hand ranks)
   (declare (ignore hand))
-  (cons 1 rank))
+  (when (member 4 (identical ranks))
+    (cons 8 ranks)))
 
-(defun rank-hand (hand)
-  (loop with rank = (sort-hand hand)
-     for fn in '(pair high-card)
-     for r = (funcall fn hand rank)
-     when r do (return r)))
+(defun full-house (hand ranks)
+  (when (and (three-of-a-kind hand ranks) (pair hand ranks))
+    (cons 7 ranks)))
+
+(defun flush (hand ranks)
+  (when (every (lambda (c) (eql (suite c) (suite (first hand))))
+	       (rest hand))
+    (cons 6 ranks)))
+
+(defun straight (hand ranks)
+  (declare (ignore hand))
+  (when (loop for (r1 r2) on ranks when r2 unless (= (- r1 r2) 1)
+	      return nil finally (return t))
+    (cons 5 ranks)))
+
+(defun three-of-a-kind (hand ranks)
+  (declare (ignore hand))
+  (when (member 3 (identical ranks))
+    (list* 4 (position 3 (identical ranks)) ranks)))
+
+(defun two-pairs (hand ranks)
+  (declare (ignore hand))
+  (when (eq 2 (count 2 (identical ranks)))
+    (list* 3 (position 2 (identical ranks) :from-end t)
+	   (position 2 (identical ranks)) ranks)))
+
+(defun pair (hand ranks)
+  (declare (ignore hand))
+  (let ((n (position 2 (identical ranks))))
+    (when n
+      (list* 2 n ranks))))
+
+(defun identical (ranks)
+  (list* 0 0 (loop for r from 2 to 14 collect (count r ranks))))
+
+(defun high-card (hand ranks)
+  (declare (ignore hand))
+  (cons 1 ranks))
+
+(defun classify (hand)
+  (loop with sorted = (sorted hand) with ranks = (mapcar #'rank sorted)
+     for fn in '(straight-flush four-of-a-kind full-house flush straight
+		 three-of-a-kind two-pairs pair high-card)
+     for c = (funcall fn sorted ranks)
+     when c do (return c)))
 
 (defun compare-hands (hand1 hand2)
-  (loop for r1 in (rank-hand hand1)
-        and r2 in (rank-hand hand2)
-        unless (= r1 r2)
-        do (return (- r1 r2))))
+  (loop for c1 in (classify hand1)
+        and c2 in (classify hand2)
+        unless (= c1 c2)
+        do (return (- c1 c2))))
