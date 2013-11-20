@@ -83,10 +83,7 @@
      for fn in '(straight-flush four-of-a-kind full-house flush straight
 		 three-of-a-kind two-pairs pair high-card)
      for c = (funcall fn sorted ranks)
-     when c do (return c)))
+     when c do (return (coerce (mapcar #'code-char c) 'string))))
 
 (defun compare-hands (hand1 hand2)
-  (loop for c1 in (classify hand1)
-        and c2 in (classify hand2)
-        unless (= c1 c2)
-        do (return (- c1 c2))))
+  (string< (classify hand1) (classify hand2)))
